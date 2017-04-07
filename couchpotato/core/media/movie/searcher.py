@@ -93,7 +93,7 @@ class MovieSearcher(SearcherBase, MovieTypeBase):
 
                 try:
                     self.single(media, search_protocols, manual = manual)
-                except IndexError:
+                except IndexError, TypeError:
                     log.error('Forcing library update for %s, if you see this often, please report: %s', (getIdentifier(media), traceback.format_exc()))
                     fireEvent('movie.update', media_id)
                 except:

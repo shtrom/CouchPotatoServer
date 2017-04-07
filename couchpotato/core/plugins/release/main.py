@@ -553,7 +553,7 @@ class Release(Plugin):
             try:
                 doc = db.get('id', r.get('_id'))
                 releases.append(doc)
-            except RecordDeleted:
+            except RecordDeleted, RecordNotFound:
                 pass
             except (ValueError, EOFError):
                 fireEvent('database.delete_corrupted', r.get('_id'), traceback_error = traceback.format_exc(0))

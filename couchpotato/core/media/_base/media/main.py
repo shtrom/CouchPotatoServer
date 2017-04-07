@@ -513,7 +513,12 @@ class MediaPlugin(MediaBase):
                 try:
                     profile = db.get('id', m['profile_id'])
                     media_releases = fireEvent('release.for_media', m['_id'], single = True)
-                    done_releases = [release for release in media_releases if release.get('status') == 'done']
+
+                    done_releases = false
+                    if media_releases:
+                        done_releases = [release for release in media_releases if release.get('status') == 'done']
+                    else:
+                        log.debug('Failed restatus, keeping previous: media release found for %s', media_id)
 
                     if done_releases:
 
