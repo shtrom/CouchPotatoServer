@@ -4,6 +4,7 @@ import re
 import shutil
 import time
 import traceback
+import sys
 
 from couchpotato import get_db
 from couchpotato.api import addApiView
@@ -31,6 +32,8 @@ class Renamer(Plugin):
     checking_snatched = False
 
     def __init__(self):
+        reload(sys)
+        sys.setdefaultencoding('utf8')
         addApiView('renamer.scan', self.scanView, docs = {
             'desc': 'For the renamer to check for new files to rename in a folder',
             'params': {
@@ -364,7 +367,7 @@ class Renamer(Plugin):
                 if self.conf('use_tab_threed') and replacements['3d_type_short']:
                     if 'OU' in replacements['3d_type_short']:
                         replacements['3d_type_short'] = replacements['3d_type_short'].replace('OU','TAB')
-                    
+
 
                 for file_type in group['files']:
 
@@ -839,7 +842,7 @@ Remove it if you want it to be renamed (again, or at least let it try again)
             if use_default:
                 move_type = self.conf('default_file_action')
 
-            if move_type not in ['copy', 'link']:
+            if move_type not in ['copy', 'link', 'symlink_reversed']:
                 try:
                     log.info('Moving "%s" to "%s"', (old, dest))
                     shutil.move(old, dest)
@@ -856,6 +859,16 @@ Remove it if you want it to be renamed (again, or at least let it try again)
             elif move_type == 'copy':
                 log.info('Copying "%s" to "%s"', (old, dest))
                 shutil.copy(old, dest)
+            elif move_type == 'symlink_reversed':
+                log.info('Reverse symlink "%s" to "%s"', (old, dest))
+                try:
+                    shutil.move(old, dest)
+                except:
+                    log.error('Moving "%s" to "%s" went wrong: %s', (old, dest, traceback.format_exc()))
+                try:
+                    symlink(dest, old)
+                except:
+                    log.error('Error while linking "%s" back to "%s": %s', (dest, old, traceback.format_exc()))
             else:
                 log.info('Linking "%s" to "%s"', (old, dest))
                 # First try to hardlink
@@ -863,7 +876,7 @@ Remove it if you want it to be renamed (again, or at least let it try again)
                     log.debug('Hardlinking file "%s" to "%s"...', (old, dest))
                     link(old, dest)
                 except:
-                    # Try to simlink next
+                    # Try to symlink next
                     log.debug('Couldn\'t hardlink file "%s" to "%s". Symlinking instead. Error: %s.', (old, dest, traceback.format_exc()))
                     shutil.copy(old, dest)
                     try:
@@ -1115,10 +1128,10 @@ Remove it if you want it to be renamed (again, or at least let it try again)
             for release_download in scan_releases:
                 # Ask the renamer to scan the item
                 if release_download['scan']:
-                    if release_download['pause'] and self.conf('file_action') == 'link':
+                    if release_download['pause'] and self.conf('file_action') in ['link', "symlink_reversed"]:
                         fireEvent('download.pause', release_download = release_download, pause = True, single = True)
                     self.scan(release_download = release_download)
-                    if release_download['pause'] and self.conf('file_action') == 'link':
+                    if release_download['pause'] and self.conf('file_action') in ['link', "symlink_reversed"]:
                         fireEvent('download.pause', release_download = release_download, pause = False, single = True)
                 if release_download['process_complete']:
                     # First make sure the files were successfully processed
@@ -1171,7 +1184,7 @@ Remove it if you want it to be renamed (again, or at least let it try again)
         return src in group['before_rename']
 
     def moveTypeIsLinked(self):
-        return self.conf('default_file_action') in ['copy', 'link']
+        return self.conf('default_file_action') in ['copy', 'link', "symlink_reversed"]
 
     def statusInfoComplete(self, release_download):
         return release_download.get('id') and release_download.get('downloader') and release_download.get('folder')
@@ -1507,9 +1520,9 @@ config = [{
                     'label': 'Default File Action',
                     'default': 'move',
                     'type': 'dropdown',
-                    'values': [('Link', 'link'), ('Copy', 'copy'), ('Move', 'move')],
+                    'values': [('Link', 'link'), ('Copy', 'copy'), ('Move', 'move'), ('Reverse Symlink', 'symlink_reversed')],
                     'description': ('<strong>Link</strong>, <strong>Copy</strong> or <strong>Move</strong> after download completed.',
-                                    'Link first tries <a href="http://en.wikipedia.org/wiki/Hard_link" target="_blank">hard link</a>, then <a href="http://en.wikipedia.org/wiki/Sym_link" target="_blank">sym link</a> and falls back to Copy.'),
+                                    'Link first tries <a href="http://en.wikipedia.org/wiki/Hard_link" target="_blank">hard link</a>, then <a href="http://en.wikipedia.org/wiki/Sym_link" target="_blank">sym link</a> and falls back to Copy. Reverse Symlink moves the file and creates symlink to it in the original location'),
                     'advanced': True,
                 },
                 {
@@ -1517,7 +1530,7 @@ config = [{
                     'label': 'Torrent File Action',
                     'default': 'link',
                     'type': 'dropdown',
-                    'values': [('Link', 'link'), ('Copy', 'copy'), ('Move', 'move')],
+                    'values': [('Link', 'link'), ('Copy', 'copy'), ('Move', 'move'), ('Reverse Symlink', 'symlink_reversed')],
                     'description': 'See above. It is prefered to use link when downloading torrents as it will save you space, while still being able to seed.',
                     'advanced': True,
                 },
